@@ -169,3 +169,7 @@ git push origin <nhánh của bạn>
 ```
 
 **5. Tạo pull request trên trang Github hoặc github-cli**
+
+## 📄 Report đồ án
+
+👉 [Xem Report tại đây](report/Report_DACNPM.pdf)
