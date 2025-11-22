@@ -18,6 +18,8 @@ type FileRepository interface {
 	GetFileByToken(ctx context.Context, token string) (*domain.File, error)
 	DeleteFile(ctx context.Context, id string, userID string) error
 	GetMyFiles(ctx context.Context, userID string, params domain.ListFileParams) ([]domain.File, error)
+	GetTotalUserFiles(ctx context.Context, userID string) (int, error)
+	GetFileSummary(ctx context.Context, userID string) (*domain.FileSummary, error)
 	FindAll(ctx context.Context) ([]domain.File, error)
 	RegisterDownload(ctx context.Context, fileID string, userID string) error
 	GetFileDownloadHistory(ctx context.Context, fileID string, userID string) (*domain.FileDownloadHistory, error)
@@ -232,7 +234,21 @@ func (r *fileRepository) GetMyFiles(ctx context.Context, userID string, params d
 
 	// 2. Thêm điều kiện lọc Status (giữ nguyên, vì không có cột status trong DB)
 	if strings.ToLower(params.Status) != "all" {
-		// ...
+		// LƯU Ý: Đây là logic lọc trạng thái (Status) trong truy vấn SQL chính.
+		status := strings.ToLower(params.Status)
+
+		// Tăng bộ đếm tham số
+		argCounter++
+
+		// Bổ sung điều kiện WHERE dựa trên Status
+		if status == "active" {
+			query += fmt.Sprintf(" AND available_from <= NOW() AND available_to > NOW()")
+		} else if status == "pending" {
+			query += fmt.Sprintf(" AND available_from > NOW()")
+		} else if status == "expired" {
+			query += fmt.Sprintf(" AND available_to <= NOW()")
+		}
+		// Nếu status không khớp, truy vấn sẽ không thay đổi, chỉ lọc user_id.
 	}
 
 	// 3. Thêm sắp xếp
@@ -249,8 +265,8 @@ func (r *fileRepository) GetMyFiles(ctx context.Context, userID string, params d
 
 	// 4. Thêm phân trang (Pagination)
 	offset := (params.Page - 1) * params.Limit
-	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argCounter, argCounter+1)
-	args = append(args, params.Limit, offset)
+	query += fmt.Sprintf(" LIMIT $2 OFFSET $3")
+	args = append(args, int64(params.Limit), int64(offset))
 
 	// 5. Thực thi truy vấn
 	rows, err := r.db.QueryContext(ctx, query, args...)
@@ -282,6 +298,63 @@ func (r *fileRepository) GetMyFiles(ctx context.Context, userID string, params d
 	}
 
 	return files, nil
+}
+func (r *fileRepository) GetTotalUserFiles(ctx context.Context, userID string) (int, error) {
+	var total int
+
+	// Đảm bảo chỉ đếm các file chưa bị xóa (nếu có cột 'deleted' trong DB)
+	query := `SELECT COUNT(id) FROM files WHERE user_id = $1`
+
+	// Nếu có cột 'deleted', bạn nên thêm điều kiện:
+	// query := `SELECT COUNT(id) FROM files WHERE user_id = $1 AND deleted = FALSE`
+
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&total)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get total file count for user %s: %w", userID, err)
+	}
+
+	return total, nil
+}
+func (r *fileRepository) GetFileSummary(ctx context.Context, userID string) (*domain.FileSummary, error) {
+	summary := &domain.FileSummary{}
+
+	// 1. Tính Active Files (available_from <= NOW < available_to)
+	activeQuery := `
+        SELECT COUNT(id) FROM files 
+        WHERE user_id = $1 
+          AND available_from <= NOW() 
+          AND available_to > NOW()
+    `
+	err := r.db.QueryRowContext(ctx, activeQuery, userID).Scan(&summary.ActiveFiles) // Chỉ truyền $1
+	if err != nil {
+		return nil, fmt.Errorf("failed to count active files: %w", err)
+	}
+
+	// 2. Tính Pending Files (Chưa có hiệu lực: NOW < available_from)
+	pendingQuery := `
+        SELECT COUNT(id) FROM files 
+        WHERE user_id = $1 
+          AND available_from > NOW()
+    `
+	err = r.db.QueryRowContext(ctx, pendingQuery, userID).Scan(&summary.PendingFiles) // Chỉ truyền $1
+	if err != nil {
+		return nil, fmt.Errorf("failed to count pending files: %w", err)
+	}
+
+	// 3. Tính Expired Files (Đã hết hiệu lực: NOW >= available_to)
+	expiredQuery := `
+        SELECT COUNT(id) FROM files 
+        WHERE user_id = $1 
+          AND available_to <= NOW()
+    `
+	err = r.db.QueryRowContext(ctx, expiredQuery, userID).Scan(&summary.ExpiredFiles) // Chỉ truyền $1
+	if err != nil {
+		return nil, fmt.Errorf("failed to count expired files: %w", err)
+	}
+
+	// Nếu bạn có cột `deleted`, nên thêm điều kiện `AND deleted = FALSE` vào tất cả các truy vấn.
+
+	return summary, nil
 }
 
 func (r *fileRepository) FindAll(ctx context.Context) ([]domain.File, error) {
