@@ -170,20 +170,37 @@ func (s *fileService) UploadFile(ctx context.Context, fileHeader *multipart.File
 
 func (s *fileService) GetMyFiles(ctx context.Context, userID string, params domain.ListFileParams) (interface{}, error) {
 	// Lấy danh sách file của user đó
+	fileSummary, err := s.fileRepo.GetFileSummary(ctx, userID)
+	if err != nil {
+		// Log lỗi hoặc xử lý lỗi một cách nhẹ nhàng hơn nếu summary không bắt buộc
+		// Trong trường hợp này, ta sẽ trả về lỗi
+		return nil, utils.WrapError(err, "Failed to retrieve file summary", utils.ErrCodeInternal)
+	}
+	totalFiles, err := s.fileRepo.GetTotalUserFiles(ctx, userID)
+	if err != nil {
+		return nil, utils.WrapError(err, "Failed to retrieve total file count", utils.ErrCodeInternal)
+	}
 	files, err := s.fileRepo.GetMyFiles(ctx, userID, params)
 	if err != nil {
 		return nil, utils.WrapError(err, "Failed to retrieve user files", utils.ErrCodeInternal)
 	}
-
+	totalPages := 0
+	if params.Limit > 0 {
+		totalPages = (totalFiles + params.Limit - 1) / params.Limit
+	}
 	// Logic tính toán Status, HoursRemaining và Summary (Mô phỏng)
-	summary := domain.FileSummary{ActiveFiles: 28, PendingFiles: 5, ExpiredFiles: 9}
+	pagination := gin.H{
+		"currentPage": params.Page,
+		"totalPages":  totalPages,
+		"totalFiles":  totalFiles,
+		"limit":       params.Limit,
+	}
 
-	// Cần thêm logic Pagination và tính toán status cho từng file
-
+	// 5. Trả về kết quả với dữ liệu thực tế
 	return gin.H{
 		"files":      files,
-		"pagination": gin.H{"currentPage": params.Page, "totalPages": 3, "totalFiles": 42, "limit": params.Limit},
-		"summary":    summary,
+		"pagination": pagination,  // Dữ liệu phân trang thực tế
+		"summary":    fileSummary, // Dữ liệu summary thực tế
 	}, nil
 }
 
