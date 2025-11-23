@@ -72,6 +72,11 @@ func (fh *FileHandler) UploadFile(ctx *gin.Context) {
 func (fh *FileHandler) DeleteFile(ctx *gin.Context) {
 	fileID := ctx.Param("id")
 
+	if uuid.Validate(fileID) != nil {
+		utils.ResponseMsg(utils.ErrCodeBadRequest, "Invalid ID provided").Export(ctx)
+		return
+	}
+
 	userID, exists := ctx.Get("userID")
 	if !exists {
 		utils.Response(utils.ErrCodeUnauthorized).Export(ctx)
@@ -115,7 +120,7 @@ func (fh *FileHandler) GetMyFiles(ctx *gin.Context) {
 	result, err := fh.file_service.GetMyFiles(ctx, userID.(string), params)
 
 	if err != nil {
-		utils.ResponseError(ctx, err)
+		err.Export(ctx)
 		return
 	}
 
@@ -160,7 +165,7 @@ func (fh *FileHandler) GetFileInfo(ctx *gin.Context) {
 		"fileSize":    file.FileSize,
 		"mimeType":    file.MimeType,
 		"shareToken":  file.ShareToken,
-		"shareLink":   fmt.Sprintf("http://localhost:8080/api/files%s", file.ShareToken),
+		"shareLink":   fmt.Sprintf("http://localhost:8080/api/files/%s", file.ShareToken),
 		"isPublic":    file.IsPublic,
 		"hasPassword": file.HasPassword,
 

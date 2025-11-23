@@ -150,7 +150,7 @@ func (s *fileService) UploadFile(ctx context.Context, fileHeader *multipart.File
 		var emails []string
 		if err := json.Unmarshal([]byte(*req.SharedWith), &emails); err == nil {
 			if err := s.sharedRepo.ShareFileWithUsers(ctx, savedFile.Id, emails); err != nil {
-				return nil, utils.ResponseMsg(utils.ErrCodeInternal, err.Error())
+				return nil, err
 			}
 		}
 	}

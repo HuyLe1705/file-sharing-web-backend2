@@ -17,45 +17,45 @@ const (
 	ErrCodeUnauthorized    ErrorCode = "UNAUTHORIZED"
 	ErrCodeTooManyRequests ErrorCode = "TOO_MANY_REQUESTS"
 
-	ErrCodeUserNotFound = "User does not exist or invalid id/email"
-	ErrCodeLoginInvalid = "Invalid email or password"
+	ErrCodeUserNotFound ErrorCode = "User does not exist or invalid id/email"
+	ErrCodeLoginInvalid ErrorCode = "Invalid email or password"
 
-	ErrCodeBearerInvalid = "Invalid or missing authentication token"
-	ErrCodeDatabaseError = "Error occured with the database"
-	ErrCodeFileNotFound  = "File not found"
+	ErrCodeBearerInvalid ErrorCode = "Invalid or missing authentication token"
+	ErrCodeDatabaseError ErrorCode = "Error occured with the database"
+	ErrCodeFileNotFound  ErrorCode = "File not found"
 
-	ErrCodeUploadBadRequest       = "Bad Upload request"
-	ErrCodeUploadPasswordTooShort = "Password too short"
-	ErrCodeUploadFileTooBig       = "File size exceeds the system limit"
-	ErrCodeFileExpired            = "File has expired"
+	ErrCodeUploadBadRequest       ErrorCode = "Bad Upload request"
+	ErrCodeUploadPasswordTooShort ErrorCode = "Password too short"
+	ErrCodeUploadFileTooBig       ErrorCode = "File size exceeds the system limit"
+	ErrCodeFileExpired            ErrorCode = "File has expired"
 
-	ErrCodeDeleteValidationErr = "You do not have permission to delete this file"
+	ErrCodeDeleteValidationErr ErrorCode = "You do not have permission to delete this file"
 
-	ErrCodeGetForbidden         = "You don't have permission to access this file"
-	ErrCodeUploadBearerRequired = "Bearer token is required for authenticated uploads"
+	ErrCodeGetForbidden         ErrorCode = "You don't have permission to access this file"
+	ErrCodeUploadBearerRequired ErrorCode = "Bearer token is required for authenticated uploads"
 
-	ErrCodeDownloadBearerRequired  = "This file requires authentication. Please provide a Bearer token"
-	ErrCodeDownloadPasswordInvalid = "The file password is incorrect"
-	ErrCodeFileLocked              = "File not yet available"
+	ErrCodeDownloadBearerRequired  ErrorCode = "This file requires authentication. Please provide a Bearer token"
+	ErrCodeDownloadPasswordInvalid ErrorCode = "The file password is incorrect"
+	ErrCodeFileLocked              ErrorCode = "File not yet available"
 
-	ErrCodeStatForbidden    = "You don't have permission to view statistics for this file"
-	ErrCodeFileStatNotFound = "File not found or statistics not available (anonymous upload)"
-	ErrCodeHistoryForbidden = "You don't have permission to view download history for this file"
+	ErrCodeStatForbidden    ErrorCode = "You don't have permission to view statistics for this file"
+	ErrCodeFileStatNotFound ErrorCode = "File not found or statistics not available (anonymous upload)"
+	ErrCodeHistoryForbidden ErrorCode = "You don't have permission to view download history for this file"
 
-	ErrCodeAdminUnauthorized = "X-Cron-Secret header is required"
-	ErrCodeCleanupNotAdmin   = "You don't have permission to perform cleanup"
-	ErrCodeCleanUpLimited    = "Cleanup endpoint is rate limited. Please try again later."
+	ErrCodeAdminUnauthorized ErrorCode = "X-Cron-Secret header is required"
+	ErrCodeCleanupNotAdmin   ErrorCode = "You don't have permission to perform cleanup"
+	ErrCodeCleanUpLimited    ErrorCode = "Cleanup endpoint is rate limited. Please try again later."
 
-	ErrCodeCantAccessResource     = "You don't have permission to access this resource"
-	ErrCodeInvalidMaxMinValidDays = "maxValidityDays must be greater than or equal to minValidityHours"
+	ErrCodeCantAccessResource     ErrorCode = "You don't have permission to access this resource"
+	ErrCodeInvalidMaxMinValidDays ErrorCode = "maxValidityDays must be greater than or equal to minValidityHours"
 )
 
 type ReturnStatus struct {
-	code string
+	code ErrorCode
 	args map[string]any
 }
 
-func (bee *ReturnStatus) Error() string {
+func (bee *ReturnStatus) Error() ErrorCode {
 	return bee.code
 }
 
@@ -77,21 +77,21 @@ func (bee *ReturnStatus) IsErr() bool {
 
 func Response(c ErrorCode) *ReturnStatus {
 	return &ReturnStatus{
-		code: string(c),
+		code: c,
 		args: gin.H{},
 	}
 }
 
 func ResponseMsg(c ErrorCode, message string) *ReturnStatus {
 	return &ReturnStatus{
-		code: string(c),
+		code: c,
 		args: gin.H{"message": message},
 	}
 }
 
 func ResponseArgs(c ErrorCode, args map[string]any) *ReturnStatus {
 	return &ReturnStatus{
-		code: string(c),
+		code: c,
 		args: args,
 	}
 }
@@ -117,8 +117,12 @@ func (bee *ReturnStatus) Export(c *gin.Context) {
 			"message": "Invalid email or password",
 		})
 
-	case ErrCodeUploadBadRequest:
-		c.JSON(400, args)
+	case ErrCodeUploadBadRequest, ErrCodeBadRequest:
+		out := gin.H{
+			"error": "Bad request",
+		}
+		maps.Copy(out, args)
+		c.JSON(400, out)
 
 	case ErrCodeUploadBearerRequired:
 		c.JSON(http.StatusUnauthorized, gin.H{

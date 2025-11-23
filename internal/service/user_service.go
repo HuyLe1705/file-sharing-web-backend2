@@ -20,7 +20,7 @@ func (us *userService) GetUserById(id string) (*domain.User, *utils.ReturnStatus
 	user := &domain.User{}
 	err := us.userRepo.FindById(id, user)
 	if err != nil {
-		return nil, utils.ResponseMsg(utils.ErrCodeUserNotFound, err.Error())
+		return nil, err
 	}
 	return user, nil
 }
