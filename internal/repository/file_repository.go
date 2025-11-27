@@ -24,6 +24,7 @@ type FileRepository interface {
 	FindAll(ctx context.Context) ([]domain.File, *utils.ReturnStatus)
 	RegisterDownload(ctx context.Context, fileID string, userID string) *utils.ReturnStatus
 	GetFileDownloadHistory(ctx context.Context, fileID string, userID string) (*domain.FileDownloadHistory, *utils.ReturnStatus)
+	GetFileStats(ctx context.Context, fileID string, userID string) (*domain.FileStat, *utils.ReturnStatus)
 }
 
 type fileRepository struct {
@@ -448,7 +449,6 @@ func (r *fileRepository) GetFileDownloadHistory(ctx context.Context, fileID stri
 	}
 
 	history := domain.FileDownloadHistory{}
-
 	history.FileId = file.Id
 	history.FileName = file.FileName
 
@@ -478,4 +478,44 @@ func (r *fileRepository) GetFileDownloadHistory(ctx context.Context, fileID stri
 	}
 
 	return &history, nil
+}
+
+func (r *fileRepository) GetFileStats(ctx context.Context, fileID string, userID string) (*domain.FileStat, *utils.ReturnStatus) {
+	query := `
+		SELECT f.id, f.user_id, f.name, s.download_count, s.user_download_count, f.created_at, d.time
+		FROM files f
+			JOIN filestat s ON f.id = s.file_id
+			JOIN download d ON f.id = d.file_id
+		WHERE id = $1
+		ORDER BY d.time DESC
+		LIMIT 1;
+	`
+
+	stat := domain.FileStat{}
+	row := r.db.QueryRowContext(ctx, query, fileID)
+	if row == nil {
+		return nil, utils.ResponseMsg(utils.ErrCodeInternal, "Error occured when executing query.")
+	}
+
+	ownerID := ""
+
+	err := row.Scan(
+		&stat.FileId,
+		&ownerID,
+		&stat.FileName,
+		&stat.TotalDownloadCount,
+		&stat.UserDownloadCount,
+		&stat.CreatedAt,
+		&stat.LastDownloadedAt,
+	)
+
+	if err != nil {
+		return nil, utils.Response(utils.ErrCodeInternal)
+	}
+
+	if ownerID != userID {
+		return nil, utils.Response(utils.ErrCodeStatForbidden)
+	}
+
+	return &stat, nil
 }

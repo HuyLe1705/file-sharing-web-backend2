@@ -388,3 +388,7 @@ func (s *fileService) GetFileDownloadHistory(ctx context.Context, fileID string,
 
 	return history, nil
 }
+
+func (s *fileService) GetFileStats(ctx context.Context, fileID string, userID string) (*domain.FileStat, *utils.ReturnStatus) {
+	return s.fileRepo.GetFileStats(ctx, fileID, userID)
+}

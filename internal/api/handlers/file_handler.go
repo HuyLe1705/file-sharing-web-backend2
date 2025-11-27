@@ -227,3 +227,36 @@ func (fh *FileHandler) GetFileDownloadHistory(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, history)
 }
+
+func (fh *FileHandler) GetFileStats(ctx *gin.Context) {
+	fileID := ctx.Param("ident")
+	userID, exists := ctx.Get("userID")
+
+	if !exists {
+		userID = nil
+	}
+
+	if uuid.Validate(fileID) != nil {
+		utils.Response(utils.ErrCodeFileNotFound).Export(ctx)
+		return
+	}
+
+	stats, err := fh.file_service.GetFileStats(ctx, fileID, userID.(string))
+	if err != nil {
+		err.Export(ctx)
+		return
+	}
+
+	out := gin.H{
+		"fileId":   stats.FileId,
+		"fileName": stats.FileName,
+		"statistics": gin.H{
+			"downloadCount":     stats.TotalDownloadCount,
+			"uniqueDownloaders": stats.UserDownloadCount,
+			"lastDownloadedAt":  stats.LastDownloadedAt,
+			"createdAt":         stats.CreatedAt,
+		},
+	}
+
+	ctx.JSON(http.StatusOK, out)
+}
